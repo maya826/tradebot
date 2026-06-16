@@ -1,0 +1,13 @@
+{
+  "name": "Legacy Terminal",
+  "short_name": "Legacy",
+  "description": "Live market dashboard with AI analysis",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0709",
+  "theme_color": "#0B0709",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

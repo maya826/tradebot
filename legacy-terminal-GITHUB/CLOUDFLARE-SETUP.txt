@@ -1,0 +1,21 @@
+CLOUDFLARE PAGES — GitHub auto-deploy settings
+
+When connecting this repo in Cloudflare Pages, use these EXACT build settings:
+
+  Framework preset:        None  (or "Vite" if offered)
+  Build command:           npm run build
+  Build output directory:  dist
+  Root directory:          (leave blank / "/")
+
+Cloudflare auto-detects the /functions folder and compiles it — this is the
+step that drag-and-drop could NOT do.
+
+ENVIRONMENT VARIABLES (Settings -> Environment variables, add to Production):
+  FINNHUB_KEY        = your Finnhub key
+  TWELVEDATA_KEY     = your Twelve Data key
+  ANTHROPIC_API_KEY  = your Anthropic key
+  (optional) ALPACA_KEY, ALPACA_SECRET, FINNHUB_STREAM_KEY
+
+After connecting + first build, test:
+  your-project.pages.dev/api/quotes?symbols=AAPL
+Should return JSON, not the app.
