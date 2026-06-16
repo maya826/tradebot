@@ -50,7 +50,7 @@ Be honest; if the move already happened and risk/reward is poor, say so and set 
   // 2) Call Anthropic with a hard 8s cap so we always return something useful
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
+    const t = setTimeout(() => ctrl.abort(), 20000);
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": aiKey, "anthropic-version": "2023-06-01" },
