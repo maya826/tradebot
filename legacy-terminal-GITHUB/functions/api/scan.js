@@ -14,6 +14,8 @@ export async function onRequest(context) {
   if (!symbol) return json({ error: "no symbol provided" }, 400);
   const price = Number(body.price) || null;
   const chgPct = Number(body.chgPct);
+  const session = (body.session || "").toString().toLowerCase().replace(/[^a-z\- ]/g, "").slice(0, 18);
+  const when = session && session !== "live" ? `in ${session} trading` : "today";
 
   // 1) Try to gather news context, but never let it block (3s cap, failures ignored)
   let headlines = [], companyName = symbol;
@@ -37,7 +39,7 @@ export async function onRequest(context) {
   }
   const newsBlock = headlines.length ? headlines.join("\n") : "(No recent headlines available — reason from general knowledge and note lower confidence.)";
 
-  const prompt = `You are a trading research assistant for someone who swing-trades (holds days, sells into profit). Analyze ${companyName} (${symbol})${price ? `, ~$${price}, ${chgPct >= 0 ? "+" : ""}${isFinite(chgPct) ? chgPct.toFixed(1) : "?"}% today` : ""}.
+  const prompt = `You are a trading research assistant for someone who swing-trades (holds days, sells into profit). Analyze ${companyName} (${symbol})${price ? `, ~$${price}, ${chgPct >= 0 ? "+" : ""}${isFinite(chgPct) ? chgPct.toFixed(1) : "?"}% ${when}` : ""}.
 
 Recent headlines:
 ${newsBlock}
@@ -45,7 +47,7 @@ ${newsBlock}
 Return ONLY a JSON object, no markdown, no preamble:
 {"symbol":"${symbol}","catalyst":"1-2 sentences on why it's likely moving","social":"1-2 sentences on how retail likely frames this + a skeptical read (organic or hype/FOMO?)","bull":"strongest bull case, 1 sentence","bear":"strongest risk, 1 sentence","setup":{"entry":"price/condition","target":"realistic target + why","stop":"stop level","timeframe":"e.g. 2-5 days"},"conviction":"Watch | Speculative | Constructive","caution":"one specific risk reminder"}
 
-Be honest; if the move already happened and risk/reward is poor, say so and set conviction to "Watch". Never imply certainty.`;
+Be honest; if the move already happened and risk/reward is poor, say so and set conviction to "Watch". Never imply certainty.${session && session !== "live" ? " This is an extended-hours move ahead of the next session; center the setup on what to watch at the next open." : ""}`;
 
   // 2) Call Anthropic with a hard 8s cap so we always return something useful
   try {
