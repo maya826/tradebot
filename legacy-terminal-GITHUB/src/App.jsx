@@ -611,24 +611,30 @@ export default function App() {
   useEffect(() => {
     if (intra[selected]) return;
     let alive = true;
-    (async () => {
+    let timer = null;
+    const load = async (attempt = 0) => {
+      const retry = () => { if (alive && attempt < 6) timer = setTimeout(() => load(attempt + 1), 5000); };
       try {
         if (isCrypto(selected)) {
           const coin = cryptoList.find((c) => c.sym === selected);
           if (!coin) return;
           const r = await fetch(`https://api.coingecko.com/api/v3/coins/${coin.id}/market_chart?vs_currency=usd&days=1`);
           const data = await r.json();
-          if (!alive || !data.prices) return;
+          if (!alive) return;
+          if (!data.prices) { retry(); return; }
           setIntra((m) => ({ ...m, [selected]: data.prices.map((p) => p[1]) }));
         } else {
           const r = await fetch(`/api/intraday?symbol=${selected}`);
           const data = await r.json();
-          if (!alive || !data.points) return;
+          if (!alive) return;
+          // Transient failure (Twelve Data rate limit) — retry so the chart loads real intraday instead of the sparse fallback.
+          if (!data.points) { retry(); return; }
           setIntra((m) => ({ ...m, [selected]: data.points }));
         }
-      } catch {}
-    })();
-    return () => { alive = false; };
+      } catch { retry(); }
+    };
+    load();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [selected, intra, isCrypto, cryptoList]);
 
   // pick the data for the active range; live ticks extend the 1D line
