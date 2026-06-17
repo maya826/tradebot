@@ -573,25 +573,30 @@ export default function App() {
   const [scanOpen, setScanOpen] = useState(false);
   const [movers, setMovers] = useState({ status: "idle", list: [] });
   const [scans, setScans] = useState({}); // sym -> { status, data }
-  const loadMovers = useCallback(async () => {
+  const [scanMode, setScanMode] = useState("today"); // "today" | "ext"
+  const [extSession, setExtSession] = useState("after-hours");
+  const loadMovers = useCallback(async (mode = "today") => {
     setMovers({ status: "loading", list: [] });
+    setScans({});
     try {
-      const r = await fetch("/api/movers");
+      const r = await fetch(mode === "ext" ? "/api/aftermovers" : "/api/movers");
       const d = await r.json();
       if (d.error || !Array.isArray(d.movers)) { setMovers({ status: "error", list: [] }); return; }
+      if (d.session) setExtSession(d.session);
       setMovers({ status: "done", list: d.movers });
     } catch { setMovers({ status: "error", list: [] }); }
   }, []);
+  const switchScanMode = useCallback((mode) => { setScanMode(mode); loadMovers(mode); }, [loadMovers]);
   const runScan = useCallback(async (m) => {
     setScans((s) => ({ ...s, [m.sym]: { status: "loading", data: null } }));
     try {
-      const r = await fetch("/api/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbol: m.sym, price: m.price, chgPct: m.chgPct }) });
+      const r = await fetch("/api/scan", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbol: m.sym, price: m.price, chgPct: m.chgPct, session: m.session || null }) });
       const d = await r.json();
       if (d.error || !d.analysis) { setScans((s) => ({ ...s, [m.sym]: { status: "error", data: null, reason: d.error || "no analysis returned", expanded: (s[m.sym] || {}).expanded } })); return; }
       setScans((s) => ({ ...s, [m.sym]: { status: "done", data: d.analysis, expanded: (s[m.sym] || {}).expanded } }));
     } catch (e) { setScans((s) => ({ ...s, [m.sym]: { status: "error", data: null, reason: "couldn't reach the server", expanded: (s[m.sym] || {}).expanded } })); }
   }, []);
-  const openScanner = () => { setScanOpen(true); if (movers.status === "idle") loadMovers(); };
+  const openScanner = () => { setScanOpen(true); if (movers.status === "idle") loadMovers(scanMode); };
   const CONV_COLOR = { Watch: T.dim, Speculative: T.amber, Constructive: T.green };
   const [intra, setIntra] = useState({}); // {SYM: [prices]}
   useEffect(() => {
@@ -963,16 +968,24 @@ Walk them through what each of these numbers means using THIS stock as the examp
               <span className="brand-serif" style={{ fontSize: 24, color: T.text }}>Daily Scanner</span>
               <button className="term-btn x-btn ml-auto" onClick={() => setScanOpen(false)} style={{ fontSize: 22 }}>×</button>
             </div>
-            <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.6, marginBottom: 18, maxWidth: 680 }}>
-              The biggest-moving names today, ranked by how much is happening. Tap any one and the AI reads its recent headlines, frames the likely catalyst and bull/bear case, and sketches a swing-trade setup — entry, target, stop. <span style={{ color: T.amber }}>These are research starting points, never advice.</span> The market doesn’t care what anyone predicts, including this tool.
-            </div>
-            <div className="flex items-center gap-2 mb-3">
-              <button className="term-btn btn-gold" onClick={loadMovers} disabled={movers.status === "loading"}
+            <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.6, marginBottom: 14, maxWidth: 680 }}>{scanMode === "ext" ? `The biggest movers in ${extSession} trading \u2014 names reacting to earnings or news after the bell, so you know what to watch when the market next opens. Tap any one for the AI read on the catalyst and a setup for the next session. Research starting points, never advice.` : "The biggest-moving names today, ranked by how much is happening. Tap any one and the AI reads its recent headlines, frames the likely catalyst and bull/bear case, and sketches a swing-trade setup. These are research starting points, never advice."}</div>
+            <div className="flex items-center gap-2 mb-3" style={{ flexWrap: "wrap" }}>
+              <div className="flex" style={{ border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden" }}>
+                <button className="term-btn" onClick={() => switchScanMode("today")} disabled={movers.status === "loading"}
+                  style={{ padding: "8px 15px", cursor: "pointer", fontFamily: MONO, fontSize: 11, border: "none", background: scanMode === "today" ? T.amber : "transparent", color: scanMode === "today" ? T.bg : T.dim, fontWeight: scanMode === "today" ? 700 : 400 }}>
+                  TODAY
+                </button>
+                <button className="term-btn" onClick={() => switchScanMode("ext")} disabled={movers.status === "loading"}
+                  style={{ padding: "8px 15px", cursor: "pointer", fontFamily: MONO, fontSize: 11, border: "none", background: scanMode === "ext" ? T.amber : "transparent", color: scanMode === "ext" ? T.bg : T.dim, fontWeight: scanMode === "ext" ? 700 : 400 }}>
+                  AFTER-HOURS
+                </button>
+              </div>
+              <button className="term-btn btn-gold" onClick={() => loadMovers(scanMode)} disabled={movers.status === "loading"}
                 style={{ borderRadius: 8, padding: "8px 18px", cursor: "pointer", fontFamily: MONO, fontSize: 11 }}>
-                {movers.status === "loading" ? "SCANNING…" : "↻ REFRESH MOVERS"}
+                {movers.status === "loading" ? "SCANNING…" : "↻ REFRESH"}
               </button>
               <span style={{ fontFamily: MONO, fontSize: 10, color: T.faint }}>
-                {movers.status === "done" ? `${movers.list.length} candidates · ranked by activity` : ""}
+                {movers.status === "done" ? `${movers.list.length} candidates · ${scanMode === "ext" ? "by " + extSession + " move" : "ranked by activity"}` : ""}
               </span>
             </div>
             {movers.status === "error" && <div style={{ color: T.red, fontSize: 12 }}>Couldn’t load movers — check FINNHUB_KEY in Netlify.</div>}
