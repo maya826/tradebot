@@ -542,11 +542,17 @@ export default function App() {
   useEffect(() => {
     if (tech[selected]) return;
     let alive = true;
-    (async () => {
+    let timer = null;
+    const load = async (attempt = 0) => {
       try {
         const r = await fetch(`/api/candles?symbol=${selected}&type=${isCrypto(selected) ? "crypto" : "stock"}`);
         const data = await r.json();
-        if (!alive || !data.closes) return;
+        if (!alive) return;
+        if (!data.closes) {
+          // Transient failure (e.g. Twelve Data rate limit) — retry a few times so the indicators never hang on "Loading…".
+          if (attempt < 6) timer = setTimeout(() => load(attempt + 1), 5000);
+          return;
+        }
         const m = macd(data.closes);
         const sr = supportResistance(data.closes);
         const lastVol = data.volumes?.[data.volumes.length - 1] || 0;
@@ -557,9 +563,12 @@ export default function App() {
           volume: lastVol, volRatio: avgVol ? Math.round((lastVol / avgVol) * 100) / 100 : null,
           closes: data.closes,
         }}));
-      } catch {}
-    })();
-    return () => { alive = false; };
+      } catch {
+        if (alive && attempt < 6) timer = setTimeout(() => load(attempt + 1), 5000);
+      }
+    };
+    load();
+    return () => { alive = false; if (timer) clearTimeout(timer); };
   }, [selected, tech]);
 
   // ── Real chart data: intraday on selection (cached), plus range toggle ──
