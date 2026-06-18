@@ -952,8 +952,8 @@ Walk them through what each of these numbers means using THIS stock as the examp
             </span>
           )}
         </div>
-        <button className="term-btn btn-gold hidden-sm" onClick={openScanner}
-          style={{ borderRadius: 8, padding: "7px 16px", cursor: "pointer", fontFamily: MONO, fontSize: 11, alignItems: "center", gap: 6 }}>
+        <button className="term-btn btn-gold scan-btn" onClick={openScanner}
+          style={{ borderRadius: 8, cursor: "pointer", fontFamily: MONO, alignItems: "center", gap: 6 }}>
           ⚡ SCANNER
         </button>
         <div className="ml-auto flex items-center gap-3">
@@ -969,7 +969,7 @@ Walk them through what each of these numbers means using THIS stock as the examp
             );
           })()}
           <span style={{ fontFamily: MONO, fontSize: 11.5, color: T.dim }}>
-            {clock.toLocaleTimeString("en-US", { hour12: false })} · {clock.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase()}
+            {clock.toLocaleTimeString("en-US", { hour12: false })}<span className="date-sm"> · {clock.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }).toUpperCase()}</span>
           </span>
         </div>
       </div>
