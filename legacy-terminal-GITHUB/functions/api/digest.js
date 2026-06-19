@@ -50,11 +50,11 @@ Rules:
 
   try {
     const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 22000);
+    const t = setTimeout(() => ctrl.abort(), 28000);
     const r = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": aiKey, "anthropic-version": "2023-06-01" },
-      body: JSON.stringify({ model: "claude-sonnet-4-6", max_tokens: 1600, messages: [{ role: "user", content: prompt }] }),
+      body: JSON.stringify({ model: "claude-haiku-4-5-20251001", max_tokens: 1600, messages: [{ role: "user", content: prompt }] }),
       signal: ctrl.signal,
     });
     clearTimeout(t);
