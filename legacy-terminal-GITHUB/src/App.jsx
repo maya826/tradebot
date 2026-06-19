@@ -618,9 +618,17 @@ export default function App() {
   const [research, setResearch] = useState(() => { try { return JSON.parse(localStorage.getItem("lt-research-v1") || "[]"); } catch { return []; } });
   const [researchPrices, setResearchPrices] = useState({});
   useEffect(() => { try { localStorage.setItem("lt-research-v1", JSON.stringify(research)); } catch {} }, [research]);
-  const loadDigest = useCallback(() => {
+  const loadDigest = useCallback((opts) => {
+    const fresh = !!(opts && opts.fresh); const attempt = (opts && opts.attempt) || 0;
     setDigest({ status: "loading", stocks: [] });
-    fetch("/api/digest").then((r) => r.json()).then((d) => setDigest(d.error ? { status: "error", stocks: [], error: d.error } : { status: "done", stocks: d.stocks || [] })).catch(() => setDigest({ status: "error", stocks: [] }));
+    fetch(`/api/digest${fresh ? "?fresh=1" : ""}`).then((r) => r.json()).then((d) => {
+      if (!d.error && d.stocks && d.stocks.length) { setDigest({ status: "done", stocks: d.stocks }); return; }
+      if (attempt < 2) { setTimeout(() => loadDigest({ fresh, attempt: attempt + 1 }), 1500); return; }
+      setDigest({ status: "error", stocks: [], error: d.error });
+    }).catch(() => {
+      if (attempt < 2) { setTimeout(() => loadDigest({ fresh, attempt: attempt + 1 }), 1500); return; }
+      setDigest({ status: "error", stocks: [] });
+    });
   }, []);
   useEffect(() => { loadDigest(); }, [loadDigest]);
   const isSaved = (sym) => research.some((x) => x.sym === sym);
@@ -1048,7 +1056,7 @@ Walk them through what each of these numbers means using THIS stock as the examp
                 <button onClick={() => setTodayTab("today")} className="term-btn" style={{ padding: "8px 14px", cursor: "pointer", fontFamily: MONO, fontSize: 11, border: "none", background: todayTab === "today" ? T.amber : "transparent", color: todayTab === "today" ? T.bg : T.dim, fontWeight: todayTab === "today" ? 700 : 400 }}>WHAT'S MOVING</button>
                 <button onClick={() => setTodayTab("saved")} className="term-btn" style={{ padding: "8px 14px", cursor: "pointer", fontFamily: MONO, fontSize: 11, border: "none", background: todayTab === "saved" ? T.amber : "transparent", color: todayTab === "saved" ? T.bg : T.dim, fontWeight: todayTab === "saved" ? 700 : 400 }}>MY RESEARCH ({research.length})</button>
               </div>
-              {todayTab === "today" && <button className="term-btn btn-gold" onClick={loadDigest} disabled={digest.status === "loading"} style={{ borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontFamily: MONO, fontSize: 11 }}>{digest.status === "loading" ? "READING…" : "↻ REFRESH"}</button>}
+              {todayTab === "today" && <button className="term-btn btn-gold" onClick={() => loadDigest({ fresh: true })} disabled={digest.status === "loading"} style={{ borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontFamily: MONO, fontSize: 11 }}>{digest.status === "loading" ? "READING…" : "↻ REFRESH"}</button>}
             </div>
 
             {todayTab === "today" && (
