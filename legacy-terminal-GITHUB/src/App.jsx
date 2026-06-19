@@ -710,6 +710,21 @@ export default function App() {
     return () => { alive = false; };
   }, [selected, earn, isCrypto]);
 
+  // ── Fundamentals (market cap, P/E, 52wk range) via existing Finnhub key ──
+  const [fund, setFund] = useState({});
+  useEffect(() => {
+    if (isCrypto(selected) || fund[selected] !== undefined) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/fundamentals?symbol=${selected}`);
+        const data = await r.json();
+        if (alive) setFund((f) => ({ ...f, [selected]: data.hasAny ? data.fundamentals : null }));
+      } catch { if (alive) setFund((f) => ({ ...f, [selected]: null })); }
+    })();
+    return () => { alive = false; };
+  }, [selected, fund, isCrypto]);
+
   // ── AI Morning Briefing across the whole watchlist ──
   const [brief, setBrief] = useState({ status: "idle", text: "" });
   const getBriefing = async () => {
@@ -1252,6 +1267,33 @@ Walk them through what each of these numbers means using THIS stock as the examp
               )}
             </div>
           </div>
+
+          {!isCrypto(selected) && fund[selected] && (() => {
+            const f = fund[selected];
+            const fmtCap = (n) => n == null ? null : (n >= 1e12 ? `$${(n / 1e12).toFixed(2)}T` : n >= 1e9 ? `$${(n / 1e9).toFixed(1)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(0)}M` : `$${Math.round(n)}`);
+            const stats = [
+              ["MKT CAP", fmtCap(f.marketCap)],
+              ["P/E", f.peRatio != null ? f.peRatio.toFixed(1) : null],
+              ["EPS", f.eps != null ? `$${f.eps.toFixed(2)}` : null],
+              ["52W RANGE", (f.week52Low != null && f.week52High != null) ? `$${fmtPrice(f.week52Low)} \u2013 $${fmtPrice(f.week52High)}` : null],
+              ["DIV YIELD", f.dividendYield != null ? `${f.dividendYield.toFixed(2)}%` : null],
+              ["BETA", f.beta != null ? f.beta.toFixed(2) : null],
+            ].filter(([, v]) => v != null);
+            if (!stats.length) return null;
+            return (
+              <div className="card mt-3 fade-up" style={{ padding: "12px 14px" }}>
+                <Label>Key stats{f.industry ? ` \u00b7 ${f.industry}` : ""}</Label>
+                <div className="flex flex-wrap" style={{ gap: "10px 26px", marginTop: 8 }}>
+                  {stats.map(([k, v]) => (
+                    <div key={k}>
+                      <div style={{ fontFamily: MONO, fontSize: 9.5, color: T.faint, letterSpacing: "0.08em" }}>{k}</div>
+                      <div style={{ fontFamily: MONO, fontSize: 14, color: T.text, fontWeight: 700 }}>{v}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="card mt-3 fade-up" style={{ padding: "12px 14px" }}>
             <div className="flex items-center gap-2 mb-2 flex-wrap">
