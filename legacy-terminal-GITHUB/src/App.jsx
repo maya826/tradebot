@@ -1537,50 +1537,6 @@ Walk them through what each of these numbers means using THIS stock as the examp
             )}
           </div>
 
-          {/* Technicals — plain-English first, trader numbers second */}
-          <div className="grid grid-3 mt-3">
-            {(() => {
-              const mo = momentumVerdict(selTech?.rsi);
-              const tr = trendVerdict(selTech?.macd, selTech?.signal);
-              const ac = activityVerdict(selTech?.volRatio);
-              const vc = (v) => v.color === "green" ? T.green : v.color === "red" ? T.red : v.color === "amber" ? T.amber : T.text;
-              return (
-                <>
-                  <div className="card fade-up" style={{ padding: 16 }}>
-                    <Label>Momentum</Label>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: vc(mo), marginBottom: 4 }}>{mo.word}</div>
-                    {mo.hint && <div style={{ fontSize: 11.5, color: T.dim, marginBottom: 10 }}>{mo.hint}</div>}
-                    <RsiGauge rsi={selTech?.rsi} />
-                    <div style={{ fontFamily: MONO, fontSize: 10, color: T.faint, marginTop: 6 }}>RSI(14): {selTech?.rsi ?? "…"}</div>
-                  </div>
-                  <div className="card fade-up" style={{ padding: 16 }}>
-                    <Label>Trend</Label>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: vc(tr), marginBottom: 4 }}>{tr.word}</div>
-                    {tr.hint && <div style={{ fontSize: 11.5, color: T.dim, marginBottom: 10 }}>{tr.hint}</div>}
-                    <div style={{ fontFamily: MONO, fontSize: 10, color: T.faint, marginTop: "auto" }}>MACD {selTech?.macd ?? "…"} vs signal {selTech?.signal ?? "…"}</div>
-                  </div>
-                  <div className="card fade-up" style={{ padding: 16 }}>
-                    <Label>Trading activity</Label>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: vc(ac), marginBottom: 4 }}>{ac.word}</div>
-                    {ac.hint && <div style={{ fontSize: 11.5, color: T.dim, marginBottom: 10 }}>{ac.hint}</div>}
-                    <div style={{ fontFamily: MONO, fontSize: 10, color: T.faint }}>{selTech?.volume ? `${Intl.NumberFormat("en", { notation: "compact" }).format(selTech.volume)} shares · ${selTech?.volRatio ?? "—"}x normal` : "loading volume…"}</div>
-                  </div>
-                </>
-              );
-            })()}
-          </div>
-
-          <div className="card mt-3 fade-up" style={{ borderLeft: `3px solid ${T.amber}`, padding: 16 }}>
-            <Label>What this means</Label>
-            <div style={{ fontSize: 13, lineHeight: 1.6 }}>{rsiPlainEnglish(selTech?.rsi, selected)}</div>
-            {selTech?.support != null && (
-              <div className="flex gap-4 flex-wrap mt-2" style={{ fontFamily: MONO, fontSize: 11 }}>
-                <span style={{ color: T.green }}>FLOOR (support) ${fmtPrice(selTech.support)}</span>
-                <span style={{ color: T.red }}>CEILING (resistance) ${fmtPrice(selTech.resistance)}</span>
-              </div>
-            )}
-          </div>
-
           {/* AI suggestion */}
           <div className="card mt-3 fade-up" style={{ border: `1px solid ${T.ai}55`, padding: 16, background: `linear-gradient(180deg, ${T.ai}0d, transparent)` }}>
             <div className="flex items-center justify-between flex-wrap gap-2">
