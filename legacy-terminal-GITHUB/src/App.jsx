@@ -611,6 +611,28 @@ export default function App() {
   const [watchOpen, setWatchOpen] = useState(false);
   const [market, setMarket] = useState({ status: "idle", indices: [], fearGreed: null });
   const [screen, setScreen] = useState({ status: "idle", rows: [] });
+  // ── TODAY: plain-English daily board + saved research ──
+  const [todayOpen, setTodayOpen] = useState(true);
+  const [digest, setDigest] = useState({ status: "idle", stocks: [] });
+  const [todayTab, setTodayTab] = useState("today");
+  const [research, setResearch] = useState(() => { try { return JSON.parse(localStorage.getItem("lt-research-v1") || "[]"); } catch { return []; } });
+  const [researchPrices, setResearchPrices] = useState({});
+  useEffect(() => { try { localStorage.setItem("lt-research-v1", JSON.stringify(research)); } catch {} }, [research]);
+  const loadDigest = useCallback(() => {
+    setDigest({ status: "loading", stocks: [] });
+    fetch("/api/digest").then((r) => r.json()).then((d) => setDigest(d.error ? { status: "error", stocks: [], error: d.error } : { status: "done", stocks: d.stocks || [] })).catch(() => setDigest({ status: "error", stocks: [] }));
+  }, []);
+  useEffect(() => { loadDigest(); }, [loadDigest]);
+  const isSaved = (sym) => research.some((x) => x.sym === sym);
+  const toggleSave = (st) => setResearch((prev) => prev.some((x) => x.sym === st.symbol) ? prev.filter((x) => x.sym !== st.symbol) : [...prev, { sym: st.symbol, company: st.company || st.symbol, note: "", addedPrice: st.price ?? null, addedDate: new Date().toISOString().slice(0, 10) }]);
+  const setSavedNote = (sym, note) => setResearch((prev) => prev.map((x) => x.sym === sym ? { ...x, note } : x));
+  const leanBadge = (lean) => lean === "up" ? { t: "↑ Leaning up", c: T.green } : lean === "down" ? { t: "↓ Leaning down", c: T.red } : { t: "→ Too close to call", c: T.dim };
+  useEffect(() => {
+    if (todayTab !== "saved" || !research.length) return;
+    const syms = research.map((x) => x.sym).join(",");
+    fetch(`/api/quotes?symbols=${encodeURIComponent(syms)}`).then((r) => r.json()).then((q) => { const m = {}; Object.entries(q || {}).forEach(([k, v]) => { if (v && v.price) m[k] = v.price; }); setResearchPrices(m); }).catch(() => {});
+  }, [todayTab, research]);
+
   const openDailyWatch = useCallback(() => {
     setWatchOpen(true);
     setMarket({ status: "loading", indices: [], fearGreed: null });
@@ -980,6 +1002,10 @@ Walk them through what each of these numbers means using THIS stock as the examp
             </span>
           )}
         </div>
+        <button className="term-btn btn-gold scan-btn" onClick={() => { setTodayOpen(true); if (digest.status === "idle") loadDigest(); }}
+          style={{ borderRadius: 8, cursor: "pointer", fontFamily: MONO, alignItems: "center", gap: 6, marginRight: 8 }}>
+          ✦ TODAY
+        </button>
         <button className="term-btn btn-gold scan-btn" onClick={openScanner}
           style={{ borderRadius: 8, cursor: "pointer", fontFamily: MONO, alignItems: "center", gap: 6 }}>
           ⚡ SCANNER
@@ -1005,6 +1031,80 @@ Walk them through what each of these numbers means using THIS stock as the examp
           </span>
         </div>
       </div>
+
+      {/* ── TODAY overlay (default home) ── */}
+      {todayOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 60, background: "rgba(8,5,7,0.98)", backdropFilter: "blur(8px)", overflowY: "auto" }}>
+          <div style={{ maxWidth: 760, margin: "0 auto", padding: "20px 16px 60px" }}>
+            <div className="flex items-center gap-3 mb-1">
+              <span style={{ color: T.amber, fontSize: 16 }}>✦</span>
+              <span className="brand-serif" style={{ fontSize: 26, color: T.text }}>Today</span>
+              <button className="term-btn ml-auto" onClick={() => setTodayOpen(false)} style={{ fontFamily: MONO, fontSize: 10, color: T.dim, border: `1px solid ${T.border}`, borderRadius: 6, padding: "6px 11px", cursor: "pointer" }}>ADVANCED VIEW →</button>
+            </div>
+            <div style={{ fontSize: 12, color: T.faint, marginBottom: 16, lineHeight: 1.5 }}>Plain-English reads on what's moving and which way it's leaning — from real news and trends. These are research starting points, not predictions, and not financial advice.</div>
+
+            <div className="flex items-center gap-2 mb-4" style={{ flexWrap: "wrap" }}>
+              <div className="flex" style={{ border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden" }}>
+                <button onClick={() => setTodayTab("today")} className="term-btn" style={{ padding: "8px 14px", cursor: "pointer", fontFamily: MONO, fontSize: 11, border: "none", background: todayTab === "today" ? T.amber : "transparent", color: todayTab === "today" ? T.bg : T.dim, fontWeight: todayTab === "today" ? 700 : 400 }}>WHAT'S MOVING</button>
+                <button onClick={() => setTodayTab("saved")} className="term-btn" style={{ padding: "8px 14px", cursor: "pointer", fontFamily: MONO, fontSize: 11, border: "none", background: todayTab === "saved" ? T.amber : "transparent", color: todayTab === "saved" ? T.bg : T.dim, fontWeight: todayTab === "saved" ? 700 : 400 }}>MY RESEARCH ({research.length})</button>
+              </div>
+              {todayTab === "today" && <button className="term-btn btn-gold" onClick={loadDigest} disabled={digest.status === "loading"} style={{ borderRadius: 8, padding: "8px 14px", cursor: "pointer", fontFamily: MONO, fontSize: 11 }}>{digest.status === "loading" ? "READING…" : "↻ REFRESH"}</button>}
+            </div>
+
+            {todayTab === "today" && (
+              <>
+                {digest.status === "loading" && <div style={{ color: T.dim, fontSize: 13, padding: 28, textAlign: "center", lineHeight: 1.6 }}>Reading today's news and writing your plain-English board…<br /><span style={{ color: T.faint, fontSize: 12 }}>takes a few seconds</span></div>}
+                {digest.status === "error" && <div style={{ color: T.red, fontSize: 13, padding: 16 }}>Couldn't load today's board — tap ↻ Refresh to try again.</div>}
+                <div className="flex flex-col gap-3">
+                  {digest.stocks.map((st) => {
+                    const lb = leanBadge(st.lean);
+                    return (
+                      <div key={st.symbol} className="card fade-up" style={{ padding: "16px 18px" }}>
+                        <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 10 }}>
+                          <span style={{ fontSize: 17, fontWeight: 700, color: T.text }}>{st.company}</span>
+                          <span style={{ fontFamily: MONO, fontSize: 11, color: T.faint }}>{st.symbol}</span>
+                          {st.price != null && <span style={{ fontFamily: MONO, fontSize: 13, color: T.text }}>${fmtPrice(st.price)}</span>}
+                          {st.chgPct != null && <span style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: st.chgPct >= 0 ? T.green : T.red }}>{st.chgPct >= 0 ? "▲" : "▼"}{Math.abs(st.chgPct).toFixed(1)}% today</span>}
+                          <span className="pill ml-auto" style={{ background: `${lb.c}22`, color: lb.c, border: `1px solid ${lb.c}66`, fontSize: 11, fontWeight: 700, padding: "4px 10px" }}>{lb.t}<span style={{ color: T.faint, fontWeight: 400, marginLeft: 6 }}>next ~2 wks</span></span>
+                        </div>
+                        <div style={{ fontSize: 14.5, color: T.text, fontWeight: 600, marginBottom: 8 }}>{st.headline}</div>
+                        <div style={{ fontSize: 13.5, color: T.dim, lineHeight: 1.65, marginBottom: 10 }}>{st.why}</div>
+                        <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.55, marginBottom: 13 }}><span style={{ color: T.red, fontWeight: 700, fontFamily: MONO, fontSize: 10, letterSpacing: "0.05em" }}>WATCH OUT · </span>{st.risk}</div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button onClick={() => toggleSave(st)} className="term-btn" style={{ fontFamily: MONO, fontSize: 11, padding: "6px 12px", borderRadius: 6, cursor: "pointer", background: isSaved(st.symbol) ? `${T.amber}22` : "transparent", border: `1px solid ${isSaved(st.symbol) ? T.amber : T.border}`, color: isSaved(st.symbol) ? T.amber : T.dim }}>{isSaved(st.symbol) ? "★ Saved" : "☆ Save to my research"}</button>
+                          <button onClick={() => { setSelected(st.symbol); if (!watchlist.includes(st.symbol)) { setWatchlist((w) => [...w, st.symbol]); setStockList((stk) => stk.includes(st.symbol) ? stk : [...stk, st.symbol]); } setTodayOpen(false); }} className="term-btn" style={{ fontFamily: MONO, fontSize: 11, padding: "6px 12px", borderRadius: 6, cursor: "pointer", background: "transparent", border: `1px solid ${T.border}`, color: T.dim }}>See chart & details →</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {todayTab === "saved" && (
+              <div className="flex flex-col gap-3">
+                {research.length === 0 && <div style={{ color: T.dim, fontSize: 13, padding: 28, textAlign: "center", lineHeight: 1.6 }}>Nothing saved yet. On the "What's moving" tab, tap <span style={{ color: T.amber }}>☆ Save</span> on any stock to keep it here with your own notes and track how it does.</div>}
+                {research.map((it) => {
+                  const cur = researchPrices[it.sym];
+                  const since = (cur != null && it.addedPrice) ? ((cur - it.addedPrice) / it.addedPrice) * 100 : null;
+                  return (
+                    <div key={it.sym} className="card" style={{ padding: "16px 18px" }}>
+                      <div className="flex items-center gap-3 flex-wrap" style={{ marginBottom: 6 }}>
+                        <span style={{ fontSize: 16, fontWeight: 700, color: T.text }}>{it.company}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 11, color: T.faint }}>{it.sym}</span>
+                        {since != null && <span className="pill" style={{ background: `${since >= 0 ? T.green : T.red}1f`, color: since >= 0 ? T.green : T.red, border: `1px solid ${since >= 0 ? T.green : T.red}55`, fontSize: 10, fontWeight: 700 }}>{since >= 0 ? "+" : ""}{since.toFixed(1)}% since you saved</span>}
+                        <button onClick={() => toggleSave({ symbol: it.sym })} className="x-btn ml-auto" style={{ color: T.faint, fontSize: 18 }}>×</button>
+                      </div>
+                      <div style={{ fontFamily: MONO, fontSize: 10, color: T.faint, marginBottom: 8 }}>Saved {it.addedDate}{it.addedPrice ? ` at $${fmtPrice(it.addedPrice)}` : ""}{cur != null ? ` · now $${fmtPrice(cur)}` : ""}</div>
+                      <textarea value={it.note} onChange={(e) => setSavedNote(it.sym, e.target.value)} placeholder="Your notes — why you're watching this, what you think…" rows={2} style={{ width: "100%", background: T.bg, border: `1px solid ${T.border}`, borderRadius: 6, color: T.text, fontFamily: "inherit", fontSize: 13, padding: "8px 10px", resize: "vertical", boxSizing: "border-box" }} />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── DAILY WATCH overlay ── */}
       {watchOpen && (
