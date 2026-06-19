@@ -606,6 +606,19 @@ export default function App() {
     } catch (e) { setScans((s) => ({ ...s, [m.sym]: { status: "error", data: null, reason: "couldn't reach the server", expanded: (s[m.sym] || {}).expanded } })); }
   }, []);
   const openScanner = () => { setScanOpen(true); if (movers.status === "idle") loadMovers(scanMode); };
+
+  // ── DAILY WATCH: market pulse + watchlist signal board ──
+  const [watchOpen, setWatchOpen] = useState(false);
+  const [market, setMarket] = useState({ status: "idle", indices: [], fearGreed: null });
+  const [screen, setScreen] = useState({ status: "idle", rows: [] });
+  const openDailyWatch = useCallback(() => {
+    setWatchOpen(true);
+    setMarket({ status: "loading", indices: [], fearGreed: null });
+    setScreen({ status: "loading", rows: [] });
+    fetch("/api/market").then((r) => r.json()).then((d) => setMarket({ status: "done", indices: d.indices || [], fearGreed: d.fearGreed || null })).catch(() => setMarket({ status: "error", indices: [], fearGreed: null }));
+    const syms = watchlist.filter((x) => !isCrypto(x)).join(",");
+    fetch(`/api/screen?symbols=${encodeURIComponent(syms)}`).then((r) => r.json()).then((d) => setScreen({ status: "done", rows: d.rows || [] })).catch(() => setScreen({ status: "error", rows: [] }));
+  }, [watchlist, isCrypto]);
   const CONV_COLOR = { Watch: T.dim, Speculative: T.amber, Constructive: T.green };
   const [intra, setIntra] = useState({}); // {SYM: [prices]}
   useEffect(() => {
@@ -971,6 +984,10 @@ Walk them through what each of these numbers means using THIS stock as the examp
           style={{ borderRadius: 8, cursor: "pointer", fontFamily: MONO, alignItems: "center", gap: 6 }}>
           ⚡ SCANNER
         </button>
+        <button className="term-btn btn-gold scan-btn" onClick={openDailyWatch}
+          style={{ borderRadius: 8, cursor: "pointer", fontFamily: MONO, alignItems: "center", gap: 6, marginLeft: 8 }}>
+          ✦ DAILY WATCH
+        </button>
         <div className="ml-auto flex items-center gap-3">
           {(() => {
             const ms = marketStatus(clock);
@@ -988,6 +1005,86 @@ Walk them through what each of these numbers means using THIS stock as the examp
           </span>
         </div>
       </div>
+
+      {/* ── DAILY WATCH overlay ── */}
+      {watchOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, background: "rgba(8,5,7,0.97)", backdropFilter: "blur(8px)", overflowY: "auto" }}>
+          <div style={{ maxWidth: 920, margin: "0 auto", padding: "22px 18px 60px" }}>
+            <div className="flex items-center gap-3 mb-2">
+              <span style={{ color: T.amber, fontSize: 15 }}>✦</span>
+              <span className="brand-serif" style={{ fontSize: 24, color: T.text }}>Daily Watch</span>
+              <button className="term-btn x-btn ml-auto" onClick={() => setWatchOpen(false)} style={{ fontSize: 22 }}>×</button>
+            </div>
+            <div style={{ fontSize: 12.5, color: T.dim, lineHeight: 1.6, marginBottom: 14, maxWidth: 680 }}>Your morning/evening glance — the market's mood up top, then your watchlist ranked by what's worth a look right now: oversold pullbacks, names near highs, big movers, analyst conviction, upcoming earnings. Tap any to open the full read. Research starting points, never advice.</div>
+
+            <div className="card" style={{ padding: "12px 14px", marginBottom: 14 }}>
+              <Label>Market pulse</Label>
+              {market.status === "loading" && <div style={{ fontSize: 12, color: T.dim, marginTop: 6 }}>Loading market…</div>}
+              {market.status === "done" && (
+                <div className="flex flex-wrap items-center" style={{ gap: "10px 22px", marginTop: 8 }}>
+                  {market.indices.map((ix) => (
+                    <div key={ix.name}>
+                      <div style={{ fontFamily: MONO, fontSize: 9.5, color: T.faint, letterSpacing: "0.06em" }}>{ix.name}</div>
+                      <div style={{ fontFamily: MONO, fontSize: 13 }}>{fmtPrice(ix.price)} <span style={{ color: (ix.chgPct ?? 0) >= 0 ? T.green : T.red, fontWeight: 700 }}>{(ix.chgPct ?? 0) >= 0 ? "▲" : "▼"}{Math.abs(ix.chgPct ?? 0).toFixed(2)}%</span></div>
+                    </div>
+                  ))}
+                  {market.fearGreed && (() => {
+                    const sc = market.fearGreed.score;
+                    const col = sc < 25 ? T.red : sc < 45 ? T.amber : sc < 55 ? T.dim : T.green;
+                    return (
+                      <div>
+                        <div style={{ fontFamily: MONO, fontSize: 9.5, color: T.faint, letterSpacing: "0.06em" }}>FEAR / GREED</div>
+                        <div style={{ fontFamily: MONO, fontSize: 13, color: col, fontWeight: 700 }}>{sc} · {(market.fearGreed.rating || "").toUpperCase()}</div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+              {market.status === "error" && <div style={{ fontSize: 12, color: T.faint, marginTop: 6 }}>Market context unavailable right now.</div>}
+            </div>
+
+            <div className="flex items-center gap-2 mb-2">
+              <button className="term-btn btn-gold" onClick={openDailyWatch} disabled={screen.status === "loading"} style={{ borderRadius: 8, padding: "8px 16px", cursor: "pointer", fontFamily: MONO, fontSize: 11 }}>{screen.status === "loading" ? "SCANNING…" : "↻ REFRESH"}</button>
+              <span style={{ fontFamily: MONO, fontSize: 10, color: T.faint }}>{screen.status === "done" ? `${screen.rows.length} on your watchlist · ranked by attention` : ""}</span>
+            </div>
+            {screen.status === "loading" && <div style={{ color: T.dim, fontSize: 12, padding: 16 }}>Reading your watchlist…</div>}
+            {screen.status === "error" && <div style={{ color: T.red, fontSize: 12, padding: 12 }}>Couldn't load the watchlist screen — tap refresh to retry.</div>}
+            <div className="flex flex-col gap-2">
+              {(() => {
+                const scored = screen.rows.map((r) => {
+                  const tags = []; let score = 0;
+                  if (r.pos52 != null) {
+                    if (r.pos52 <= 0.12) { tags.push({ t: "NEAR 52W LOW", c: T.green }); score += 2; }
+                    else if (r.pos52 >= 0.88) { tags.push({ t: "NEAR 52W HIGH", c: T.amber }); score += 2; }
+                  }
+                  if (r.dayPct != null && Math.abs(r.dayPct) >= 4) { tags.push({ t: `${r.dayPct >= 0 ? "+" : ""}${r.dayPct.toFixed(1)}% TODAY`, c: r.dayPct >= 0 ? T.green : T.red }); score += 2; }
+                  if (r.analyst === "Strong Buy") { tags.push({ t: "ANALYSTS: STRONG BUY", c: T.blue }); score += 1; }
+                  else if (r.analyst === "Buy") { tags.push({ t: "ANALYSTS: BUY", c: T.blue }); score += 0.5; }
+                  else if (r.analyst === "Sell" || r.analyst === "Strong Sell") { tags.push({ t: `ANALYSTS: ${r.analyst.toUpperCase()}`, c: T.red }); score += 1; }
+                  const e = earn[r.sym];
+                  if (e) { const days = Math.round((new Date(e + "T12:00:00") - Date.now()) / 864e5); if (days >= 0 && days <= 7) { tags.push({ t: `EARNINGS ${days === 0 ? "TODAY" : `IN ${days}D`}`, c: T.amber }); score += 1.5; } }
+                  return { ...r, tags, score };
+                }).sort((a, b) => b.score - a.score);
+                return scored.map((r, i) => (
+                  <div key={r.sym} className="card cursor-pointer" style={{ padding: "12px 16px" }} onClick={() => { setSelected(r.sym); setWatchOpen(false); }}>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span style={{ fontFamily: MONO, fontSize: 11, color: T.faint, width: 16 }}>{i + 1}</span>
+                      <div style={{ fontFamily: MONO, fontWeight: 700, fontSize: 14, minWidth: 54 }}>{r.sym}</div>
+                      <div style={{ fontFamily: MONO, fontSize: 13 }}>{r.price != null ? `$${fmtPrice(r.price)}` : "…"}</div>
+                      {r.dayPct != null && <div style={{ fontFamily: MONO, fontSize: 12, fontWeight: 700, color: r.dayPct >= 0 ? T.green : T.red }}>{r.dayPct >= 0 ? "▲" : "▼"}{Math.abs(r.dayPct).toFixed(2)}%</div>}
+                      <div className="flex flex-wrap items-center ml-auto" style={{ gap: 6 }}>
+                        {r.tags.length === 0 ? <span style={{ fontFamily: MONO, fontSize: 9.5, color: T.faint }}>quiet</span> : r.tags.map((tg) => (
+                          <span key={tg.t} className="pill" style={{ background: `${tg.c}1f`, color: tg.c, border: `1px solid ${tg.c}55`, fontSize: 9, fontWeight: 700 }}>{tg.t}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── SCANNER overlay ── */}
       {scanOpen && (
