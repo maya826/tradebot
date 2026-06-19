@@ -1278,6 +1278,7 @@ Walk them through what each of these numbers means using THIS stock as the examp
               ["52W RANGE", (f.week52Low != null && f.week52High != null) ? `$${fmtPrice(f.week52Low)} \u2013 $${fmtPrice(f.week52High)}` : null],
               ["DIV YIELD", f.dividendYield != null ? `${f.dividendYield.toFixed(2)}%` : null],
               ["BETA", f.beta != null ? f.beta.toFixed(2) : null],
+              ["ANALYSTS", f.analysts ? `${f.analysts.label} \u00b7 ${f.analysts.total}` : null],
             ].filter(([, v]) => v != null);
             if (!stats.length) return null;
             return (
@@ -1291,6 +1292,15 @@ Walk them through what each of these numbers means using THIS stock as the examp
                     </div>
                   ))}
                 </div>
+                {Array.isArray(f.peers) && f.peers.length > 0 && (
+                  <div className="flex flex-wrap items-center" style={{ gap: 6, marginTop: 12 }}>
+                    <span style={{ fontFamily: MONO, fontSize: 9.5, color: T.faint, letterSpacing: "0.08em" }}>PEERS</span>
+                    {f.peers.map((pp) => (
+                      <button key={pp} className="term-btn" onClick={() => { setSelected(pp); if (!watchlist.includes(pp)) { setWatchlist((w) => [...w, pp]); setStockList((st) => st.includes(pp) ? st : [...st, pp]); } }}
+                        style={{ fontFamily: MONO, fontSize: 10, padding: "3px 9px", borderRadius: 6, cursor: "pointer", background: "transparent", border: `1px solid ${T.border}`, color: T.dim }}>{pp}</button>
+                    ))}
+                  </div>
+                )}
               </div>
             );
           })()}
